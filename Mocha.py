@@ -80,7 +80,6 @@ async def isAdmin(ctx):
     if ctx.author.top_role.permissions.manage_channels:
         return True
     else:
-        await ctx.send("Sorry, only mods can use this command! :confused:")
         return False
 
 # Check to see any incoming messages from Ko-Fi
@@ -162,6 +161,7 @@ async def on_ready():
 async def on_member_join(member):
     welcomeChannel = findChannel(config["mocha_config"]["welcome_channel"])
     userList[4].append(str(member.id))
+    CSVParser.writeNestedList(config["mocha_config"]["user_file"], userList, 'w')
     if welcomeChannel != None:
         await welcomeChannel.send(config["message_strings"]["welcome_message"])
 
@@ -174,6 +174,7 @@ async def on_member_remove(member):
     if str(member.id) in userList[4]:
         idx = userList[4].index(str(member.id))
         userList[4][idx] = '0'
+    CSVParser.writeNestedList(config["mocha_config"]["user_file"], userList, 'w')
 
 # Confirming new users through on_message hook
 @bot.event
@@ -191,6 +192,8 @@ async def on_message(message):
                             return await welcomeChannel.send("Sorry, " + message.content +
                                     " has not made any recent Ko-fi donations!"
                         userList[0][idx] = str(message.author.id)
+                        CSVParser.writeNestedList(config["mocha_config"]["user_file"],
+                                userList, 'w')
                         newRole = await getRole(config["mocha_config"]["supporter_role"])
                         await message.author.add_roles(newRole)
                         await welcomeChannel.send(config["message_strings"]["accept_message"])
@@ -237,6 +240,16 @@ async def getMembers(ctx):
     if dmChannel != None:
         await dmChannel.send("Here's all info on every supporter for ya!", files=listFiles)
 
+# Reload the configuration file
+@bot.command(hidden=True)
+@commands.check(is_admin)
+async def reloadConfig(ctx):
+    """Reload the configuration file"""
+    global config
+    config = configparser.ConfigParser()
+    config.read("MochaConfig.ini")
+    await ctx.send("Done!")
+
 if __name__ == '__main__':
     print("Mocha : " + VERSION + "\nby SockHungryClutz\n(All further non-fatal"
             "messages will be output to logs)")
@@ -265,5 +278,4 @@ if __name__ == '__main__':
             logger.warning("Discord connection reset:\n" + str(e))
         finally:
             time.sleep(60)
-    logger.closeLog()
     theLoop.close()

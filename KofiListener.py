@@ -39,4 +39,10 @@ def initListener(returnQueue):
         config["logging"]["max_log_size"],
         config["logging"]["max_number_logs"],
         config["logging"]["log_verbosity"])
-    app.run(port = int(config["kofi_config"]["port"]))
+    while True:
+        try:
+            app.run(port = int(config["kofi_config"]["port"]))
+        except BaseException as e:
+            logger.warning("Ko-fi listen server error:\n" + str(e))
+        finally:
+            time.sleep(60)
