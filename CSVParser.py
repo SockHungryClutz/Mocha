@@ -10,12 +10,15 @@ class CSVParser():
     @staticmethod
     # Returns a cleaned list from a csv file
     def parseFile(filename):
-        r = FileParser.readFile(filename)
+        r = CSVParser.readFile(filename)
         l = len(r) - 1
         i = l
         lastChar = r[l][-1]
         while i >= 0:
-            r[i] = r[i][:-1].split(',')
+            if r[i][:-1] == "":
+                r[i] = ['0']
+            else:
+                r[i] = r[i][:-1].split(',')
             i -= 1
         if not lastChar.isspace():
             r[l][len(r[l])-1] = r[l][len(r[l])-1] + lastChar
@@ -35,4 +38,4 @@ class CSVParser():
             for o in n:
                 ostr += o + ','
             ostr = ostr[:-1] + '\n'
-        FileParser.writeFile(filename, ostr, mode)
+        CSVParser.writeFile(filename, ostr, mode)

@@ -6,8 +6,9 @@ all the data associated with normal use, pretty much everything.
 """
 import discord
 from discord.ext import commands
-from multiprocessing import Queue
+from multiprocessing import Process, Queue
 from CSVParser import CSVParser
+from RollingLogger import RollingLogger_Sync
 import asyncio
 import configparser
 import time
@@ -20,6 +21,8 @@ bot = commands.Bot(command_prefix='m.',
         description="Hi! I'm Mocha V"+VERSION+"!\nUse \"m.<command>\""
                 " to tell me to do something!",
         case_insensitive=True)
+
+bot.remove_command("help")
 
 config = configparser.ConfigParser()
 config.read("MochaConfig.ini")
@@ -91,12 +94,12 @@ async def checkKoFiQueue():
                 koFiData = koFiQueue.get()
                 logger.info("Ko-Fi data received")
                 # needs testing to ensure this timestamp format is correct
-                jsonTime = koFiData["timestamp"]
+                jsonTime = koFiData["data"]["timestamp"]
                 jsonTime = jsonTime.split('.')[0]
                 koFiTime = time.mktime(datetime.datetime.strptime(
                         jsonTime, "%Y-%m-%dT%H:%M:%S").timetuple())
-                koFiUser = koFiData["from_name"]
-                koFiAmount = float(koFiData["amount"])
+                koFiUser = koFiData["data"]["from_name"]
+                koFiAmount = float(koFiData["data"]["amount"])
                 if koFiUser in userList[1]:
                     # Existing user, update last donation time and total donated
                     idx = userList[1].index(koFiUser)
@@ -132,19 +135,21 @@ async def checkPaymentTime():
         idx = 0
         while idx < len(userList[0]):
             if int(userList[0][idx]) == 0:
+                idx += 1
                 continue
             if isOlderThan(float(userList[2][idx]), 32):
                 usr = bot.get_user(int(userList[0][idx]))
                 mem = await getMember(usr)
                 msgChannel = await getDmChannel(usr)
                 if msgChannel == None:
+                    idx += 1
                     continue
                 if isOlderThan(float(userList[2][idx]), gracePeriod):
-                    await msgChannel.send(config["message_strings"]["kick_message"])
+                    await msgChannel.send(config["message_strings"]["kick"])
                     await mem.kick(reason=userList[1][idx]+
                             " is no longer a Ko-fi supporter")
                 else:
-                    await msgChannel.send(config["message_strings"]["warning_message"])
+                    await msgChannel.send(config["message_strings"]["warning"])
                     warnRole = await getRole(config["mocha_config"]["warning_role"])
                     await mem.add_roles(warnRole, reason=userList[1][idx]+
                             " has missed a monthly payment")
@@ -153,7 +158,8 @@ async def checkPaymentTime():
 
 @bot.event
 async def on_ready():
-    await bot.change_presence(activity=discord.Game(name="with a cup of Ko-fi", type=1))
+    await bot.change_presence(activity=discord.Game(
+            name=config["message_strings"]["activity"], type=1))
     logger.info('Discord log in success!')
 
 # Send welcome message on member join
@@ -163,7 +169,7 @@ async def on_member_join(member):
     userList[4].append(str(member.id))
     CSVParser.writeNestedList(config["mocha_config"]["user_file"], userList, 'w')
     if welcomeChannel != None:
-        await welcomeChannel.send(config["message_strings"]["welcome_message"])
+        await welcomeChannel.send(config["message_strings"]["welcome"])
 
 # Handle member leaving
 @bot.event
@@ -190,43 +196,38 @@ async def on_message(message):
                     if userList[0][idx] == '0':
                         if isOlderThan(float(userList[2][idx]), 32):
                             return await welcomeChannel.send("Sorry, " + message.content +
-                                    " has not made any recent Ko-fi donations!"
+                                    " has not made any recent Ko-fi donations!")
                         userList[0][idx] = str(message.author.id)
                         CSVParser.writeNestedList(config["mocha_config"]["user_file"],
                                 userList, 'w')
                         newRole = await getRole(config["mocha_config"]["supporter_role"])
                         await message.author.add_roles(newRole)
-                        await welcomeChannel.send(config["message_strings"]["accept_message"])
+                        await welcomeChannel.send(config["message_strings"]["accept"])
                     else:
                         await welcomeChannel.send("Sorry, looks like that Ko-fi"
                                 " user is already on this server!")
                 else:
                     await welcomeChannel.send("Sorry, " + message.content +
-                            " has not made any recent Ko-fi donations!"
+                            " has not made any recent Ko-fi donations!")
     await bot.process_commands(message)
 
 # Overwrite default help command to make it less generic
-@bot.remove_command("help")
-
 @bot.command()
 async def help(ctx):
-    await ctx.send("Hi! I'm Mocha V"+VERSION+"! A bot that keeps track of Ko-fi" +
-            " payments and helps manage this Ko-fi exclusive Discord guild!\n" +
-            "Unfortunately I don't have any commands for normal users (other" +
-            " than this), sorry!")
+    await ctx.send(config["message_strings"]["help"]
 
 # Get the user list as a CSV for mods
 @bot.command(hidden=True)
-@commands.check(is_admin)
+@commands.check(isAdmin)
 async def getMembers(ctx):
     """Return a CSV of info about members"""
     # Although data processing/searching is easier the way userList is,
     # the CSV file output looks better rotated 90 degrees (rows become columns)
-    finalCSV = [[] for _ in xrange(len(userList) + 1)]
-    finalCSV[idx+1].append("Discord ID")
-    finalCSV[idx+1].append("Ko-fi Username")
-    finalCSV[idx+1].append("Last Donation Timestamp")
-    finalCSV[idx+1].append("Total Donated")
+    finalCSV = [[] for _ in range(len(userList) + 1)]
+    finalCSV[0].append("Discord ID")
+    finalCSV[0].append("Ko-fi Username")
+    finalCSV[0].append("Last Donation Timestamp")
+    finalCSV[0].append("Total Donated")
     for idx in range(0, len(userList[0])):
         finalCSV[idx+1].append(userList[0][idx])
         finalCSV[idx+1].append(userList[1][idx])
@@ -242,7 +243,7 @@ async def getMembers(ctx):
 
 # Reload the configuration file
 @bot.command(hidden=True)
-@commands.check(is_admin)
+@commands.check(isAdmin)
 async def reloadConfig(ctx):
     """Reload the configuration file"""
     global config
@@ -257,11 +258,11 @@ if __name__ == '__main__':
     # Start the logger
     logger = RollingLogger_Sync(
         config["logging"]["discord_log_name"],
-        config["logging"]["max_log_size"],
-        config["logging"]["max_number_logs"],
-        config["logging"]["log_verbosity"]))
+        int(config["logging"]["max_log_size"]),
+        int(config["logging"]["max_number_logs"]),
+        int(config["logging"]["log_verbosity"]))
     
-    p = Process(target=initListener, args=(koFiQueue,))
+    p = Process(target=KofiListener.initListener, args=(koFiQueue,))
     p.start()
     
     theLoop = bot.loop

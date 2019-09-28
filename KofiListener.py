@@ -5,7 +5,9 @@ by SockHungryClutz
 """
 from flask import Flask, request, abort
 from multiprocessing import Queue
+from RollingLogger import RollingLogger_Sync
 import configparser
+import time
 
 app = Flask(__name__)
 
@@ -27,7 +29,7 @@ def koFiHandler():
         koFiLogger.info("New Ko-Fi message:\n" + str(data))
         eventQueue.put(data)
         return("OK")
-    else
+    else:
         abort(403)
 
 # Initialize, called as a new process
@@ -36,9 +38,9 @@ def initListener(returnQueue):
     eventQueue = returnQueue
     koFiLogger = RollingLogger_Sync(
         config["logging"]["kofi_log_name"],
-        config["logging"]["max_log_size"],
-        config["logging"]["max_number_logs"],
-        config["logging"]["log_verbosity"])
+        int(config["logging"]["max_log_size"]),
+        int(config["logging"]["max_number_logs"]),
+        int(config["logging"]["log_verbosity"]))
     while True:
         try:
             app.run(port = int(config["kofi_config"]["port"]))
