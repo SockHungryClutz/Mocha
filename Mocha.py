@@ -207,6 +207,8 @@ async def on_message(message):
                             return await welcomeChannel.send("Sorry, " + message.content +
                                     " has not made any recent Ko-fi donations!")
                         userList[0][idx] = str(message.author.id)
+                        idx = userList[4].index(str(message.author.id))
+                        del userList[4][idx]
                         CSVParser.writeNestedList(config["mocha_config"]["user_file"],
                                 userList, 'w')
                         newRole = await getRole(config["mocha_config"]["supporter_role"])
