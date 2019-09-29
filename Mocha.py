@@ -31,6 +31,7 @@ config.read("MochaConfig.ini")
 #           [koFiName(str)],
 #           [lastDonationTime(float)],
 #           [totalDonated(float)],
+#           [memberStatus(int)],
 #           [unconfirmedUsers(int)]] (last entry not same length as others)
 userList = CSVParser.parseFile(config["mocha_config"]["user_file"])
 
@@ -48,7 +49,7 @@ async def getDmChannel(usr):
 async def getMember(usr):
     guilds = await bot.fetch_guilds().flatten()
     for guild in guilds:
-        mem = guild.get_member(usr.id)
+        mem = await guild.fetch_member(usr.id)
         if mem != None:
             return mem
     return None
@@ -57,7 +58,7 @@ async def getMember(usr):
 async def getRole(roleName):
     guilds = await bot.fetch_guilds().flatten()
     for guild in guilds:
-        roles = guild.roles
+        roles = await guild.fetch_roles()
         for rol in roles:
             if rol.name == roleName:
                 return rol
@@ -105,6 +106,7 @@ async def checkKoFiQueue():
                     idx = userList[1].index(koFiUser)
                     userList[2][idx] = str(koFiTime)
                     userList[3][idx] = str(koFiAmount + float(userList[3][idx]))
+                    userList[4][idx] = '0'
                     if userList[0][idx] != '0':
                         mem = await getMember(bot.get_user(int(userList[0][idx])))
                         warnRole = await getRole(config["mocha_config"]["warning_role"])
@@ -119,6 +121,7 @@ async def checkKoFiQueue():
                     userList[1].append(koFiUser)
                     userList[2].append(str(koFiTime))
                     userList[3].append(str(koFiAmount))
+                    userList[4].append('0')
                 CSVParser.writeNestedList(config["mocha_config"]["user_file"],
                         userList, 'w')
             except BaseException as e:
@@ -149,10 +152,16 @@ async def checkPaymentTime():
                     await mem.kick(reason=userList[1][idx]+
                             " is no longer a Ko-fi supporter")
                 else:
+                    if userList[4][idx] == '1':
+                        idx += 1
+                        continue
                     await msgChannel.send(config["message_strings"]["warning"])
                     warnRole = await getRole(config["mocha_config"]["warning_role"])
                     await mem.add_roles(warnRole, reason=userList[1][idx]+
                             " has missed a monthly payment")
+                    userList[4][idx] = '1'
+                    CSVParser.writeNestedList(config["mocha_config"]["user_file"],
+                        userList, 'w')
             idx += 1
         await asyncio.sleep(int(config["mocha_config"]["payment_check_delay"]))
 
@@ -166,7 +175,7 @@ async def on_ready():
 @bot.event
 async def on_member_join(member):
     welcomeChannel = findChannel(config["mocha_config"]["welcome_channel"])
-    userList[4].append(str(member.id))
+    userList[5].append(str(member.id))
     CSVParser.writeNestedList(config["mocha_config"]["user_file"], userList, 'w')
     if welcomeChannel != None:
         await welcomeChannel.send(config["message_strings"]["welcome"])
@@ -177,9 +186,9 @@ async def on_member_remove(member):
     if str(member.id) in userList[0]:
         idx = userList[0].index(str(member.id))
         userList[0][idx] = '0'
-    if str(member.id) in userList[4]:
-        idx = userList[4].index(str(member.id))
-        userList[4][idx] = '0'
+    if str(member.id) in userList[5]:
+        idx = userList[5].index(str(member.id))
+        del userList[5][idx]
     CSVParser.writeNestedList(config["mocha_config"]["user_file"], userList, 'w')
 
 # Confirming new users through on_message hook
@@ -189,8 +198,8 @@ async def on_message(message):
     # Confirm this is in the welcome channel, by an unconfirmed user, has only
     # one word, is a ko-fi supporter, and is unattached to a Discord id
     if message.channel.id == welcomeChannel.id:
-        if str(message.author.id) in userList[4]:
-            if not ' ' in message.content:
+        if str(message.author.id) in userList[5]:
+            if not ' ' in message.content and message.content != "":
                 if message.content in userList[1]:
                     idx = userList[1].index(message.content)
                     if userList[0][idx] == '0':
@@ -214,7 +223,7 @@ async def on_message(message):
 # Overwrite default help command to make it less generic
 @bot.command()
 async def help(ctx):
-    await ctx.send(config["message_strings"]["help"]
+    await ctx.send(config["message_strings"]["help"])
 
 # Get the user list as a CSV for mods
 @bot.command(hidden=True)
@@ -228,11 +237,13 @@ async def getMembers(ctx):
     finalCSV[0].append("Ko-fi Username")
     finalCSV[0].append("Last Donation Timestamp")
     finalCSV[0].append("Total Donated")
+    finalCSV[0].append("Has Late Payment")
     for idx in range(0, len(userList[0])):
         finalCSV[idx+1].append(userList[0][idx])
         finalCSV[idx+1].append(userList[1][idx])
         finalCSV[idx+1].append(userList[2][idx])
         finalCSV[idx+1].append(userList[3][idx])
+        finalCSV[idx+1].append(userList[4][idx])
     CSVParser.writeNestedList("tempMemberList.csv", finalCSV, 'w')
     listFiles = [
         discord.File("tempMemberList.csv", "MemberList.csv"),

@@ -1,5 +1,5 @@
 # This requirements file lists all third-party dependencies for this project.
 #
 # Run 'pip install -r requirements.txt' to install these dependencies.
-discord.py
+git+git://github.com/Rapptz/discord.py.git@master#discord.py
 flask
