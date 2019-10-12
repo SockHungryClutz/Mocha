@@ -43,7 +43,9 @@ def initListener(returnQueue):
         int(config["logging"]["log_verbosity"]))
     while True:
         try:
-            app.run(port = int(config["kofi_config"]["port"]))
+            app.run(
+                    port = int(config["kofi_config"]["port"]),
+                    ssl_context = "adhoc")
         except BaseException as e:
             logger.warning("Ko-fi listen server error:\n" + str(e))
         finally:

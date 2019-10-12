@@ -3,3 +3,4 @@
 # Run 'pip install -r requirements.txt' to install these dependencies.
 git+git://github.com/Rapptz/discord.py.git@master#discord.py
 flask
+pyopenssl
