@@ -23,6 +23,12 @@ Follow [these steps](https://github.com/reactiflux/discord-irc/wiki/Creating-a-d
 
 -----
 
+## HTTPS/SSL Setup
+
+Use [certbot](https://certbot.eff.org/) to generate certificates for your webserver, add the paths to `MochaConfig.ini`. Ko-fi webhooks only work over ssl connections that are verified and signed and stuff.
+
+-----
+
 ## Usage
 
 Open a command window / powershell / terminal and enter `python3 Mocha.py`

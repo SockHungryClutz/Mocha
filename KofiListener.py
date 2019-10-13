@@ -8,6 +8,7 @@ from multiprocessing import Queue
 from RollingLogger import RollingLogger_Sync
 import configparser
 import time
+import json
 
 app = Flask(__name__)
 
@@ -21,7 +22,7 @@ config.read("MochaConfig.ini")
 @app.route("/", methods=["POST"])
 def koFiHandler():
     global config, eventQueue, koFiLogger
-    data = request.get_json()
+    data = json.loads(request.form["data"])
     key = request.args.get("key", default="_", type=str)
     # The key argument in the request must match the expected key
     # Weak form of security, but good enough for a discord bot
@@ -44,9 +45,11 @@ def initListener(returnQueue):
     while True:
         try:
             app.run(
+                    host = "0.0.0.0",
                     port = int(config["kofi_config"]["port"]),
-                    ssl_context = "adhoc")
+                    ssl_context = (config["kofi_config"]["certificate"],
+                                    config["kofi_config"]["key_file"]))
         except BaseException as e:
-            logger.warning("Ko-fi listen server error:\n" + str(e))
+            koFiLogger.warning("Ko-fi listen server error:\n" + str(e))
         finally:
             time.sleep(60)
