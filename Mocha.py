@@ -15,7 +15,7 @@ import time
 import datetime
 import KofiListener
 
-VERSION = "0.0.1"
+VERSION = "1.0.0"
 
 bot = commands.Bot(command_prefix='m.',
         description="Hi! I'm Mocha V"+VERSION+"!\nUse \"m.<command>\""
@@ -95,12 +95,12 @@ async def checkKoFiQueue():
                 koFiData = koFiQueue.get()
                 logger.info("Ko-Fi data received")
                 # needs testing to ensure this timestamp format is correct
-                jsonTime = koFiData["data"]["timestamp"]
+                jsonTime = koFiData["timestamp"]
                 jsonTime = jsonTime.split('.')[0]
                 koFiTime = time.mktime(datetime.datetime.strptime(
                         jsonTime, "%Y-%m-%dT%H:%M:%S").timetuple())
-                koFiUser = koFiData["data"]["from_name"]
-                koFiAmount = float(koFiData["data"]["amount"])
+                koFiUser = koFiData["from_name"]
+                koFiAmount = float(koFiData["amount"])
                 if koFiUser in userList[1]:
                     # Existing user, update last donation time and total donated
                     idx = userList[1].index(koFiUser)
@@ -143,22 +143,21 @@ async def checkPaymentTime():
             if isOlderThan(float(userList[2][idx]), 32):
                 usr = bot.get_user(int(userList[0][idx]))
                 mem = await getMember(usr)
-                msgChannel = await getDmChannel(usr)
-                if msgChannel == None:
-                    idx += 1
-                    continue
+                msgChannel = await getChannel(config["mocha_config"]["mod_channel"])
                 if isOlderThan(float(userList[2][idx]), gracePeriod):
-                    await msgChannel.send(config["message_strings"]["kick"])
-                    await mem.kick(reason=userList[1][idx]+
-                            " is no longer a Ko-fi supporter")
+                    await msgChannel.send(mem.nick + " has not made a payment in 32 days"
+                            " plus grace period! Recommended action is to kick using: "
+                            "`m.kickUser " + mem.nick + "` or you can make an "
+                            "exception with `m.postpone " + mem.nick + " <days>` to "
+                            "delay the next warning")
                 else:
                     if userList[4][idx] == '1':
                         idx += 1
                         continue
-                    await msgChannel.send(config["message_strings"]["warning"])
-                    warnRole = await getRole(config["mocha_config"]["warning_role"])
-                    await mem.add_roles(warnRole, reason=userList[1][idx]+
-                            " has missed a monthly payment")
+                    await msgChannel.send(mem.nick + " has not made a payment in 32 days"
+                            "! Recommended action is to warn using: `m.warnUser " +
+                            mem.nick + "` or you can make an exception with `m.postpone "
+                            + mem.nick + " <days>` to delay the next warning")
                     userList[4][idx] = '1'
                     CSVParser.writeNestedList(config["mocha_config"]["user_file"],
                         userList, 'w')
@@ -204,22 +203,21 @@ async def on_message(message):
                     idx = userList[1].index(message.content)
                     if userList[0][idx] == '0':
                         if isOlderThan(float(userList[2][idx]), 32):
-                            return await welcomeChannel.send("Sorry, " + message.content +
-                                    " has not made any recent Ko-fi donations!")
+                            return await welcomeChannel.send(
+                                    config["message_strings"]["no_activity"])
                         userList[0][idx] = str(message.author.id)
-                        idx = userList[4].index(str(message.author.id))
-                        del userList[4][idx]
+                        idx = userList[5].index(str(message.author.id))
+                        del userList[5][idx]
                         CSVParser.writeNestedList(config["mocha_config"]["user_file"],
                                 userList, 'w')
                         newRole = await getRole(config["mocha_config"]["supporter_role"])
                         await message.author.add_roles(newRole)
                         await welcomeChannel.send(config["message_strings"]["accept"])
                     else:
-                        await welcomeChannel.send("Sorry, looks like that Ko-fi"
-                                " user is already on this server!")
+                        await welcomeChannel.send(
+                                config["message_strings"]["user_taken"])
                 else:
-                    await welcomeChannel.send("Sorry, " + message.content +
-                            " has not made any recent Ko-fi donations!")
+                    await welcomeChannel.send(config["message_strings"]["no_activity"])
     await bot.process_commands(message)
 
 # Overwrite default help command to make it less generic
@@ -263,6 +261,58 @@ async def reloadConfig(ctx):
     config = configparser.ConfigParser()
     config.read("MochaConfig.ini")
     await ctx.send("Done!")
+
+# Send warning message to user
+@bot.command(hidden=True)
+@commands.check(isAdmin)
+async def warnUser(ctx, *args):
+    if len(args) < 1 or len(args) >= 2:
+        ctx.send("Woops! please specify a single guild member to warn!")
+    else:
+        usr = ctx.guild.get_member_named(args[0])
+        msgChannel = await getDmChannel(usr)
+        if msgChannel == None:
+            await ctx.send("Could not open DM channel for that user!")
+        else:
+            await msgChannel.send(config["message_strings"]["warning"])
+            if config["mocha_config"]["warning_role"] != "NONE":
+                warnRole = await getRole(config["mocha_config"]["warning_role"])
+                await usr.add_roles(warnRole, "missed a monthly payment")
+            await ctx.send("Warning sent!")
+
+# Kick a user
+@bot.command(hidden=True)
+@commands.check(isAdmin)
+async def kickUser(ctx, *args):
+    if len(args) < 1 or len(args) >= 2:
+        ctx.send("Woops! please specify a single guild member to kick!")
+    else:
+        usr = ctx.guild.get_member_named(args[0])
+        msgChannel = await getDmChannel(usr)
+        if msgChannel == None:
+            await ctx.send("Could not open DM channel for that user!")
+        else:
+            await msgChannel.send(config["message_strings"]["kick"])
+            await mem.kick(reason="user is no longer a Ko-fi supporter")
+            await ctx.send("User kicked!")
+
+# Extend a user's time before kick suggestion
+@bot.command(hidden=True)
+@commands.check(isAdmin)
+async def postpone(ctx, *args):
+    if len(args) <= 1 or len(args) > 2:
+        ctx.send("Woops! please specify a guild member and number of days!")
+    else:
+        usr = ctx.guild.get_member_named(args[0])
+        if str(usr.id) in userList[0]:
+            idx = userList[0].index(str(usr.id))
+            timestamp = time.mktime((datetime.date.today() +
+                    datetime.timedelta(days=int(args[1]))).timetuple())
+            userList[2][idx] = str(timestamp)
+            userList[4][idx] = '0'
+            CSVParser.writeNestedList(config["mocha_config"]["user_file"],
+                    userList, 'w')
+            await ctx.send("Success! User's time has been extended!")
 
 if __name__ == '__main__':
     print("Mocha : " + VERSION + "\nby SockHungryClutz\n(All further non-fatal"
