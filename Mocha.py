@@ -201,7 +201,7 @@ async def on_message(message):
             if not ' ' in message.content and message.content != "":
                 if message.content in userList[1]:
                     idx = userList[1].index(message.content)
-                    if userList[0][idx] == '0':
+                    if userList[0][idx] == '0' and message.content != "Someone":
                         if isOlderThan(float(userList[2][idx]), 32):
                             return await welcomeChannel.send(
                                     config["message_strings"]["no_activity"])
