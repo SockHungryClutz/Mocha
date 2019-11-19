@@ -19,6 +19,7 @@ koFiLogger = None
 config = configparser.ConfigParser()
 config.read("MochaConfig.ini")
 
+
 @app.route("/", methods=["POST"])
 def koFiHandler():
     global config, eventQueue, koFiLogger
@@ -29,9 +30,10 @@ def koFiHandler():
     if key == config["kofi_config"]["key"]:
         koFiLogger.info("New Ko-Fi message:\n" + str(data))
         eventQueue.put(data)
-        return("OK")
+        return "OK"
     else:
         abort(403)
+
 
 # Initialize, called as a new process
 def initListener(returnQueue):
@@ -45,10 +47,10 @@ def initListener(returnQueue):
     while True:
         try:
             app.run(
-                    host = "0.0.0.0",
-                    port = int(config["kofi_config"]["port"]),
-                    ssl_context = (config["kofi_config"]["certificate"],
-                                    config["kofi_config"]["key_file"]))
+                host="0.0.0.0",
+                port=int(config["kofi_config"]["port"]),
+                ssl_context=(config["kofi_config"]["certificate"],
+                             config["kofi_config"]["key_file"]))
         except BaseException as e:
             koFiLogger.warning("Ko-fi listen server error:\n" + str(e))
         finally:

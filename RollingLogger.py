@@ -21,6 +21,7 @@ from logging.handlers import RotatingFileHandler
 import time
 from datetime import datetime
 
+
 class RollingLogger_Sync:
     def __init__(self, name, fileSize, numFile, level):
         if level == 0:
@@ -38,26 +39,26 @@ class RollingLogger_Sync:
             else:
                 self.logger.setLevel(logging.DEBUG)
             self.nologs = False
-            self.handler = RotatingFileHandler(name+".log", maxBytes=fileSize, backupCount=numFile)
+            self.handler = RotatingFileHandler(name + ".log", maxBytes=fileSize, backupCount=numFile)
             self.logger.addHandler(self.handler)
             self.logger.info(">Logger " + name + " initialized - " + str(datetime.now()) + "<")
 
     def debug(self, msg):
         if not self.nologs:
-            self.logger.debug("[" + str(datetime.now()) + "] *   " +msg)
+            self.logger.debug("[" + str(datetime.now()) + "] *   " + msg)
 
     def info(self, msg):
         if not self.nologs:
-            self.logger.info("[" + str(datetime.now()) + "]     " +msg)
+            self.logger.info("[" + str(datetime.now()) + "]     " + msg)
 
     def warning(self, msg):
         if not self.nologs:
-            self.logger.warning("[" + str(datetime.now()) + "] !   " +msg)
+            self.logger.warning("[" + str(datetime.now()) + "] !   " + msg)
 
     def error(self, msg):
         if not self.nologs:
-            self.logger.error("[" + str(datetime.now()) + "] !!  " +msg)
+            self.logger.error("[" + str(datetime.now()) + "] !!  " + msg)
 
     def critical(self, msg):
         if not self.nologs:
-            self.logger.critical("[" + str(datetime.now()) + "] !!! " +msg)
+            self.logger.critical("[" + str(datetime.now()) + "] !!! " + msg)

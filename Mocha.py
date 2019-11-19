@@ -15,12 +15,12 @@ import time
 import datetime
 import KofiListener
 
-VERSION = "1.0.0"
+VERSION = "1.0.1"
 
 bot = commands.Bot(command_prefix='m.',
-        description="Hi! I'm Mocha V"+VERSION+"!\nUse \"m.<command>\""
-                " to tell me to do something!",
-        case_insensitive=True)
+                   description="Hi! I'm Mocha V" + VERSION + "!\nUse \"m.<command>\""
+                                                             " to tell me to do something!",
+                   case_insensitive=True)
 
 bot.remove_command("help")
 
@@ -37,6 +37,7 @@ userList = CSVParser.parseFile(config["mocha_config"]["user_file"])
 
 koFiQueue = Queue()
 
+
 # Async utility function to slide into them DM's
 async def getDmChannel(usr):
     dm_chan = usr.dm_channel
@@ -44,6 +45,7 @@ async def getDmChannel(usr):
         await usr.create_dm()
         dm_chan = usr.dm_channel
     return dm_chan
+
 
 # Async utility to convert user to member (there is a difference)
 async def getMember(usr):
@@ -53,6 +55,7 @@ async def getMember(usr):
         if mem != None:
             return mem
     return None
+
 
 # Async utility to find a role by name
 async def getRole(roleName):
@@ -64,6 +67,7 @@ async def getRole(roleName):
                 return rol
     return None
 
+
 # Sync utility to find a channel by name
 def findChannel(chnl):
     foundChannel = None
@@ -73,11 +77,13 @@ def findChannel(chnl):
             foundChannel = channel
     return foundChannel
 
+
 # Sync utility to compare a timestamp to X days ago
 def isOlderThan(timeStamp, daysAgo):
     thePast = time.mktime((datetime.date.today() -
-                datetime.timedelta(days=daysAgo)).timetuple())
+                           datetime.timedelta(days=daysAgo)).timetuple())
     return timeStamp < thePast
+
 
 # Role check for commands
 async def isAdmin(ctx):
@@ -86,11 +92,13 @@ async def isAdmin(ctx):
     else:
         return False
 
+
 # Check to see any incoming messages from Ko-Fi
 async def checkKoFiQueue():
     await bot.wait_until_ready()
     while not bot.is_closed():
         while not koFiQueue.empty():
+            koFiData = "uninitialized"
             try:
                 koFiData = koFiQueue.get()
                 logger.info("Ko-Fi data received")
@@ -98,7 +106,7 @@ async def checkKoFiQueue():
                 jsonTime = koFiData["timestamp"]
                 jsonTime = jsonTime.split('.')[0]
                 koFiTime = time.mktime(datetime.datetime.strptime(
-                        jsonTime, "%Y-%m-%dT%H:%M:%S").timetuple())
+                    jsonTime, "%Y-%m-%dT%H:%M:%S").timetuple())
                 koFiUser = koFiData["from_name"]
                 koFiAmount = float(koFiData["amount"])
                 if koFiUser in userList[1]:
@@ -111,8 +119,8 @@ async def checkKoFiQueue():
                         mem = await getMember(bot.get_user(int(userList[0][idx])))
                         warnRole = await getRole(config["mocha_config"]["warning_role"])
                         try:
-                            await mem.remove_roles(warnRole, reason=userList[1][idx]+
-                                    " has made a payment")
+                            await mem.remove_roles(warnRole, reason=userList[1][idx] +
+                                                                    " has made a payment")
                         except BaseException as e:
                             pass
                 else:
@@ -123,12 +131,13 @@ async def checkKoFiQueue():
                     userList[3].append(str(koFiAmount))
                     userList[4].append('0')
                 CSVParser.writeNestedList(config["mocha_config"]["user_file"],
-                        userList, 'w')
+                                          userList, 'w')
             except BaseException as e:
                 logger.warning("Error parsing KoFi data\nOriginal Data:\n" +
-                        str(koFiData) + "\nError Details:\n" +
-                        str(e))
+                               str(koFiData) + "\nError Details:\n" +
+                               str(e))
         await asyncio.sleep(int(config["mocha_config"]["kofi_check_delay"]))
+
 
 # Check for users who are late on payments, deal with them accordingly
 async def checkPaymentTime():
@@ -143,32 +152,34 @@ async def checkPaymentTime():
             if isOlderThan(float(userList[2][idx]), 32):
                 usr = bot.get_user(int(userList[0][idx]))
                 mem = await getMember(usr)
-                msgChannel = await getChannel(config["mocha_config"]["mod_channel"])
+                msgChannel = await findChannel(config["mocha_config"]["mod_channel"])
                 if isOlderThan(float(userList[2][idx]), gracePeriod):
                     await msgChannel.send(mem.nick + " has not made a payment in 32 days"
-                            " plus grace period! Recommended action is to kick using: "
-                            "`m.kickUser " + mem.nick + "` or you can make an "
-                            "exception with `m.postpone " + mem.nick + " <days>` to "
-                            "delay the next warning")
+                                                     " plus grace period! Recommended action is to kick using: "
+                                                     "`m.kickUser " + mem.nick + "` or you can make an "
+                                                     "exception with `m.postpone " + mem.nick + " <days>` to "
+                                                     "delay the next warning")
                 else:
                     if userList[4][idx] == '1':
                         idx += 1
                         continue
                     await msgChannel.send(mem.nick + " has not made a payment in 32 days"
-                            "! Recommended action is to warn using: `m.warnUser " +
-                            mem.nick + "` or you can make an exception with `m.postpone "
-                            + mem.nick + " <days>` to delay the next warning")
+                                                     "! Recommended action is to warn using: `m.warnUser " +
+                                          mem.nick + "` or you can make an exception with `m.postpone "
+                                          + mem.nick + " <days>` to delay the next warning")
                     userList[4][idx] = '1'
                     CSVParser.writeNestedList(config["mocha_config"]["user_file"],
-                        userList, 'w')
+                                              userList, 'w')
             idx += 1
         await asyncio.sleep(int(config["mocha_config"]["payment_check_delay"]))
+
 
 @bot.event
 async def on_ready():
     await bot.change_presence(activity=discord.Game(
-            name=config["message_strings"]["activity"], type=1))
+        name=config["message_strings"]["activity"], type=1))
     logger.info('Discord log in success!')
+
 
 # Send welcome message on member join
 @bot.event
@@ -178,6 +189,7 @@ async def on_member_join(member):
     CSVParser.writeNestedList(config["mocha_config"]["user_file"], userList, 'w')
     if welcomeChannel != None:
         await welcomeChannel.send(config["message_strings"]["welcome"])
+
 
 # Handle member leaving
 @bot.event
@@ -189,6 +201,7 @@ async def on_member_remove(member):
         idx = userList[5].index(str(member.id))
         del userList[5][idx]
     CSVParser.writeNestedList(config["mocha_config"]["user_file"], userList, 'w')
+
 
 # Confirming new users through on_message hook
 @bot.event
@@ -204,26 +217,28 @@ async def on_message(message):
                     if userList[0][idx] == '0' and message.content != "Someone":
                         if isOlderThan(float(userList[2][idx]), 32):
                             return await welcomeChannel.send(
-                                    config["message_strings"]["no_activity"])
+                                config["message_strings"]["no_activity"])
                         userList[0][idx] = str(message.author.id)
                         idx = userList[5].index(str(message.author.id))
                         del userList[5][idx]
                         CSVParser.writeNestedList(config["mocha_config"]["user_file"],
-                                userList, 'w')
+                                                  userList, 'w')
                         newRole = await getRole(config["mocha_config"]["supporter_role"])
                         await message.author.add_roles(newRole)
                         await welcomeChannel.send(config["message_strings"]["accept"])
                     else:
                         await welcomeChannel.send(
-                                config["message_strings"]["user_taken"])
+                            config["message_strings"]["user_taken"])
                 else:
                     await welcomeChannel.send(config["message_strings"]["no_activity"])
     await bot.process_commands(message)
+
 
 # Overwrite default help command to make it less generic
 @bot.command()
 async def help(ctx):
     await ctx.send(config["message_strings"]["help"])
+
 
 # Get the user list as a CSV for mods
 @bot.command(hidden=True)
@@ -233,17 +248,20 @@ async def getMembers(ctx):
     # Although data processing/searching is easier the way userList is,
     # the CSV file output looks better rotated 90 degrees (rows become columns)
     finalCSV = [[] for _ in range(len(userList) + 1)]
-    finalCSV[0].append("Discord ID")
+    finalCSV[0].append("Discord Name")
     finalCSV[0].append("Ko-fi Username")
-    finalCSV[0].append("Last Donation Timestamp")
+    finalCSV[0].append("Last Donation")
     finalCSV[0].append("Total Donated")
     finalCSV[0].append("Has Late Payment")
     for idx in range(0, len(userList[0])):
-        finalCSV[idx+1].append(userList[0][idx])
-        finalCSV[idx+1].append(userList[1][idx])
-        finalCSV[idx+1].append(userList[2][idx])
-        finalCSV[idx+1].append(userList[3][idx])
-        finalCSV[idx+1].append(userList[4][idx])
+        usr = bot.get_user(userList[0][idx])
+        finalCSV[idx + 1].append(usr.name)
+        finalCSV[idx + 1].append(userList[1][idx])
+        timeStamp = float(userList[2][idx])
+        timeString = datetime.fromtimestamp(timeStamp).strftime("%Y/%m/%d %H:%M:%S")
+        finalCSV[idx + 1].append(timeString)
+        finalCSV[idx + 1].append(userList[3][idx])
+        finalCSV[idx + 1].append(userList[4][idx])
     CSVParser.writeNestedList("tempMemberList.csv", finalCSV, 'w')
     listFiles = [
         discord.File("tempMemberList.csv", "MemberList.csv"),
@@ -251,6 +269,7 @@ async def getMembers(ctx):
     dmChannel = await getDmChannel(ctx.author)
     if dmChannel != None:
         await dmChannel.send("Here's all info on every supporter for ya!", files=listFiles)
+
 
 # Reload the configuration file
 @bot.command(hidden=True)
@@ -261,6 +280,7 @@ async def reloadConfig(ctx):
     config = configparser.ConfigParser()
     config.read("MochaConfig.ini")
     await ctx.send("Done!")
+
 
 # Send warning message to user
 @bot.command(hidden=True)
@@ -280,6 +300,7 @@ async def warnUser(ctx, *args):
                 await usr.add_roles(warnRole, "missed a monthly payment")
             await ctx.send("Warning sent!")
 
+
 # Kick a user
 @bot.command(hidden=True)
 @commands.check(isAdmin)
@@ -292,9 +313,11 @@ async def kickUser(ctx, *args):
         if msgChannel == None:
             await ctx.send("Could not open DM channel for that user!")
         else:
+            mem = await getMember(usr)
             await msgChannel.send(config["message_strings"]["kick"])
             await mem.kick(reason="user is no longer a Ko-fi supporter")
             await ctx.send("User kicked!")
+
 
 # Extend a user's time before kick suggestion
 @bot.command(hidden=True)
@@ -307,27 +330,28 @@ async def postpone(ctx, *args):
         if str(usr.id) in userList[0]:
             idx = userList[0].index(str(usr.id))
             timestamp = time.mktime((datetime.date.today() +
-                    datetime.timedelta(days=int(args[1]))).timetuple())
+                                     datetime.timedelta(days=int(args[1]))).timetuple())
             userList[2][idx] = str(timestamp)
             userList[4][idx] = '0'
             CSVParser.writeNestedList(config["mocha_config"]["user_file"],
-                    userList, 'w')
+                                      userList, 'w')
             await ctx.send("Success! User's time has been extended!")
+
 
 if __name__ == '__main__':
     print("Mocha : " + VERSION + "\nby SockHungryClutz\n(All further non-fatal"
-            "messages will be output to logs)")
-    
+                                 "messages will be output to logs)")
+
     # Start the logger
     logger = RollingLogger_Sync(
         config["logging"]["discord_log_name"],
         int(config["logging"]["max_log_size"]),
         int(config["logging"]["max_number_logs"]),
         int(config["logging"]["log_verbosity"]))
-    
+
     p = Process(target=KofiListener.initListener, args=(koFiQueue,))
     p.start()
-    
+
     theLoop = bot.loop
     theLoop.create_task(checkKoFiQueue())
     theLoop.create_task(checkPaymentTime())
@@ -337,7 +361,7 @@ if __name__ == '__main__':
             bot.clear()
         try:
             theLoop.run_until_complete(bot.start(
-                    config["mocha_config"]["token"]))
+                config["mocha_config"]["token"]))
         except BaseException as e:
             logger.warning("Discord connection reset:\n" + str(e))
         finally:

@@ -1,12 +1,14 @@
 # Handler for parsing CSV files
 # Using this because I don't like how the default CSV parser has to read a
 # file handle and sit inside a "with open"
+
+
 class CSVParser():
     @staticmethod
     def readFile(filename):
         with open(filename) as f:
             return f.readlines()
-    
+
     @staticmethod
     # Returns a cleaned list from a csv file
     def parseFile(filename):
@@ -21,9 +23,9 @@ class CSVParser():
                 r[i] = r[i][:-1].split(',')
             i -= 1
         if not lastChar.isspace():
-            r[l][len(r[l])-1] = r[l][len(r[l])-1] + lastChar
+            r[l][len(r[l]) - 1] = r[l][len(r[l]) - 1] + lastChar
         return r
-    
+
     @staticmethod
     # Writes out to a file, can take a mode as argument
     def writeFile(filename, content, mode):
